@@ -1,0 +1,119 @@
+//1. ServiceDesc->Broker Отправка заявки \nв очередь на обработку ServiceDesc 
+//Брокер складывает сообщение в очередь и назначает на свободного consumer'а
+POST
+{ 
+    "application":{
+        {"id":"int",
+        "appl_number":"int",
+        "region": "string",
+        "date_of_execution":"string",//dd-mm-yyyy hh:mm:ss
+        "lvl_diff":"int"
+        }
+    }
+}
+//2. Ответ, что сообщение принято, если Kafka. Из RMQ никакого ответа не возвращается
+
+//3. ServiceDesc->ServiceDesc Сохранение данных по заявке и инженерам в БД 
+//(можно решить через репликацию баз между ServiceDesc и Matching, но может вызвать ошибки в данных)
+application
+ id int
+, appl_number int
+, region text
+, date_of_execution date
+, lvl_diff int
+, create_at date
+-----------------------
+engineer
+ id int
+, FIO text
+, region text
+, qualification text
+, status text
+--------------
+schedule
+ id int
+, engineer_id int
+, day_of_week text
+, hour time --hh:mm
+
+//4. ServiceDesc-> Источник заявок 
+//Синхронное взаимодействие, чтобы сразу отдать клиенту ответ, что заявка принята
+POST
+{ "application":{
+    "app_status":"enum",//справочник
+    "create_date":"string"//dd-mm-yyyy hh:mm:ss}
+    }
+}
+//5. Matching->Broker 
+//Чтение заявок из брокера (Код для чтения сообщений из брокера)
+{ 
+    "application":{
+        {"id":"int",
+        "appl_number":"int",
+        "region": "string",
+        "date_of_execution":"string",//dd-mm-yyyy hh:mm:ss
+        "lvl_diff":"int"
+        }
+    }
+}
+
+//6. Matching->Matching Сохранение заявки
+application
+ id int
+, appl_number int
+, region text
+, date_of_execution date
+, lvl_diff int
+, create_at date
+
+//8. Matching->ServiceDesc Запрос данных по инженерам через POST, так как нужны фильры на данные
+//(можно решить тем, что сразу отбирать по фильтру из п.8 в этом случае на стороне matching у нас не будет полноценной БД с данными по инженерам)
+
+POST 
+{"engineer"{
+    "FIO": "string",
+    "region":"string",
+    "qualification":"string",
+    "status":"string"
+    "schedule":{
+        "day_of_week":"string",
+        "hour":"string"
+    }
+
+}}
+
+//9. Matching->Matching Сохранение данных по инженерам
+engineer
+ id int
+, FIO text
+, region text
+, qualification text
+, status text
+--------------
+schedule
+ id int
+, engineer_id int
+, day_of_week text
+, hour time --hh:mm
+
+//10. Поиск подходящего инженера по параметрам заявки SQL 
+//(можно решить тем, что сразу отбирать по фильтру из п.8 в этом случае на стороне matching у нас не будет полноценной БД с данными по инженерам)
+
+Регион клиента=Регион инженера
+Сложности заявки <= Квалификация инженера
+День недели Даты исполнения=Один из дней недели Графика работы инженера
+Время Даты исполнения в диапазоне дня недели из предыдущего пункта
+Статус доступности инженера = Доступен на вычисленный день и время
+
+//11.Matching->ServiceDesc возвращает заявку в синхронном взаимодействии, как только найдется подходящего инженера 
+POST
+{
+    "id":"int",
+    "appl_number":"int",
+    "region": "string",
+    "date_of_execution":"string",//dd-mm-yyyy hh:mm:ss
+    "lvl_diff":"int",
+    "engineer"{
+        "FIO": "string",
+    }
+}
